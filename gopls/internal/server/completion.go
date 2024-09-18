@@ -17,6 +17,7 @@ import (
 	"golang.org/x/tools/gopls/internal/settings"
 	"golang.org/x/tools/gopls/internal/telemetry"
 	"golang.org/x/tools/gopls/internal/template"
+	"golang.org/x/tools/gopls/internal/util"
 	"golang.org/x/tools/gopls/internal/work"
 	"golang.org/x/tools/internal/event"
 )
@@ -40,7 +41,14 @@ func (s *server) Completion(ctx context.Context, params *protocol.CompletionPara
 	var surrounding *completion.Selection
 	switch snapshot.FileKind(fh) {
 	case file.Go:
-		candidates, surrounding, err = completion.Completion(ctx, snapshot, fh, params.Position, params.Context)
+		subCtx := context.WithValue(ctx, "code9", "completion")
+
+		tsCost := util.F(subCtx, "trigger char [%s] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", params.Context.TriggerCharacter)
+		tsCost()
+
+		tsCost = util.F(subCtx, "Completion entry")
+		candidates, surrounding, err = completion.Completion(subCtx, snapshot, fh, params.Position, params.Context)
+		tsCost()
 	case file.Mod:
 		candidates, surrounding = nil, nil
 	case file.Work:

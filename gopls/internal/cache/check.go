@@ -31,6 +31,7 @@ import (
 	"golang.org/x/tools/gopls/internal/filecache"
 	"golang.org/x/tools/gopls/internal/label"
 	"golang.org/x/tools/gopls/internal/protocol"
+	"golang.org/x/tools/gopls/internal/util"
 	"golang.org/x/tools/gopls/internal/util/bug"
 	"golang.org/x/tools/gopls/internal/util/safetoken"
 	"golang.org/x/tools/internal/analysisinternal"
@@ -385,13 +386,20 @@ func (s *Snapshot) forEachPackage(ctx context.Context, ids []PackageID, pre preT
 		post(indexes[i], pkg)
 	}
 
+	tsCost := util.F(ctx, "getPackageHandles, needIDs %d", len(needIDs))
 	handles, err := s.getPackageHandles(ctx, needIDs)
+	tsCost(len(handles))
 	if err != nil {
 		return err
 	}
 
+	tsCost = util.F(ctx, "getImportGraph")
 	impGraph := s.getImportGraph(ctx)
+	tsCost()
+
+	tsCost = util.F(ctx, "forEachPackageInternal")
 	_, err = s.forEachPackageInternal(ctx, impGraph, nil, needIDs, pre2, post2, handles)
+	tsCost()
 	return err
 }
 
@@ -445,7 +453,9 @@ func (s *Snapshot) forEachPackageInternal(ctx context.Context, importGraph *impo
 		i := i
 		id := id
 		g.Go(func() error {
+			tsConst := util.F(ctx, "handleSyntaxPackage, %s",id)
 			_, err := b.handleSyntaxPackage(ctx, i, id)
+			tsConst()
 			return err
 		})
 	}
@@ -548,6 +558,7 @@ func (b *typeCheckBatch) handleSyntaxPackage(ctx context.Context, i int, id Pack
 	}
 
 	// Wait for predecessors.
+	tsCost := util.F(ctx, "getImportPackage, %d", len(ph.mp.DepsByPkgPath))
 	{
 		var g errgroup.Group
 		for _, depID := range ph.mp.DepsByPkgPath {
@@ -566,7 +577,9 @@ func (b *typeCheckBatch) handleSyntaxPackage(ctx context.Context, i int, id Pack
 			}
 		}
 	}
+	tsCost()
 
+	tsCost = util.F(ctx, "cpu")
 	// Wait to acquire a CPU token.
 	//
 	// Note: it is important to acquire this token only after awaiting
@@ -579,17 +592,22 @@ func (b *typeCheckBatch) handleSyntaxPackage(ctx context.Context, i int, id Pack
 			<-b.cpulimit // release CPU token
 		}()
 	}
+	tsCost()
 
+	tsCost = util.F(ctx, "checkPackage")
 	// Compute the syntax package.
 	p, err := b.checkPackage(ctx, ph)
 	if err != nil {
 		return nil, err
 	}
+	tsCost()
 
 	// Update caches.
 	go storePackageResults(ctx, ph, p) // ...and write all packages to disk
 
+	tsCost = util.F(ctx, "post")
 	b.post(i, p)
+	tsCost()
 
 	return p.pkg.types, nil
 }

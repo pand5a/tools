@@ -12,6 +12,7 @@ import (
 	"golang.org/x/tools/gopls/internal/cache/metadata"
 	"golang.org/x/tools/gopls/internal/cache/parsego"
 	"golang.org/x/tools/gopls/internal/protocol"
+	"golang.org/x/tools/gopls/internal/util"
 )
 
 // NarrowestMetadataForFile returns metadata for the narrowest package
@@ -75,8 +76,16 @@ func selectPackageForFile(ctx context.Context, snapshot *cache.Snapshot, uri pro
 	if len(mps) == 0 {
 		return nil, nil, fmt.Errorf("no package metadata for file %s", uri)
 	}
+
+	tsCost := util.F(ctx, "selector")
 	mp := selector(mps)
+	tsCost()
+
+
+	tsCost = util.F(ctx, "TypeCheck")
 	pkgs, err := snapshot.TypeCheck(ctx, mp.ID)
+	tsCost()
+
 	if err != nil {
 		return nil, nil, err
 	}

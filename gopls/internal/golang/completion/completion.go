@@ -37,6 +37,7 @@ import (
 	"golang.org/x/tools/gopls/internal/golang/completion/snippet"
 	"golang.org/x/tools/gopls/internal/protocol"
 	"golang.org/x/tools/gopls/internal/settings"
+	"golang.org/x/tools/gopls/internal/util"
 	goplsastutil "golang.org/x/tools/gopls/internal/util/astutil"
 	"golang.org/x/tools/gopls/internal/util/safetoken"
 	"golang.org/x/tools/gopls/internal/util/typesutil"
@@ -477,7 +478,10 @@ func Completion(ctx context.Context, snapshot *cache.Snapshot, fh file.Handle, p
 
 	startTime := time.Now()
 
+
+	tsCost := util.F(ctx, "NarrowestPackageForFile")
 	pkg, pgf, err := golang.NarrowestPackageForFile(ctx, snapshot, fh.URI())
+	tsCost()
 	if err != nil || pgf.File.Package == token.NoPos {
 		// If we can't parse this file or find position for the package
 		// keyword, it may be missing a package declaration. Try offering
